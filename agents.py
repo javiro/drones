@@ -18,7 +18,7 @@ class Drone(object):
     Class which implements the agents in drone communication game.
     """
 
-    def __init__(self, player_id, num_of_channels):
+    def __init__(self, player_id, num_of_channels, strategy=None):
         """
         Parameters
         ----------
@@ -27,7 +27,10 @@ class Drone(object):
         # Set internal parameters
         self.player_id = player_id
         self.num_of_channels = num_of_channels
-        self.strategy = np.random.randint(num_of_channels)
+        if strategy is None:
+            self.strategy = np.random.randint(num_of_channels)
+        else:
+            self.strategy = strategy
 
     def set_strategy(self):
         player = np.zeros(self.num_of_channels)
@@ -80,49 +83,32 @@ class DronePopulation(object):
         """
         # Set internal parameters
         self.n_of_agents = n_of_agents
-        self.initial_condition = self.get_initial_condition(random_initial_condition)
         self.num_of_channels = num_of_channels
+        self.random_initial_condition = random_initial_condition
+        self.initial_condition = self.get_initial_condition(random_initial_condition)
         self.population = self.populate_group()
 
     def get_initial_condition(self, random_initial_condition):
         if random_initial_condition == 'ON':
-            agents = self.n_of_agents
-            random_initial_condition = [random.randint(1, agents)]
-            for i in range(1, self.num_of_channels - 1):
-                if agents - sum(random_initial_condition) > 0:
-                    random_initial_condition.append(random.randint(1, agents - sum(random_initial_condition)))
-                else:
-                    random_initial_condition.append(0)
-            if agents - sum(random_initial_condition) > 0:
-                random_initial_condition.append(agents - sum(random_initial_condition))
-            else:
-                random_initial_condition.append(0)
-
-            return random_initial_condition
+            random_initial_distribution = []
+            return random_initial_distribution
 
         elif sum(random_initial_condition) == self.n_of_agents:
-            return random_initial_condition
-
-    # def get_initial_condition(self, random_initial_condition):
-    #     if random_initial_condition == 'ON':
-    #         agents = self.n_of_agents
-    #         random_initial_condition = []
-    #         for i in range(1, self.num_of_channels):
-    #             random_initial_condition.append(random.randint(1, agents))
-    #         random_initial_condition.sort()
-    #
-    #         return [*[random_initial_condition[0]],
-    #                 *list(np.array(random_initial_condition[1:]) - np.array(random_initial_condition[:-1])),
-    #                 *[random_initial_condition[-1] - agents]]
-    #
-    #     elif sum(random_initial_condition) == self.n_of_agents:
-    #         return random_initial_condition
+            random_initial_distribution = random_initial_condition
+            return random_initial_distribution
 
     def populate_group(self):
         population = []
-        for i in range(self.population_size):
-            player = Drone(i, self.color, self.game_length, self.revision_length, mode='random')
-            population.append(player)
+        if self.random_initial_condition == 'ON':
+            for i in range(self.n_of_agents):
+                player = Drone(i, self.num_of_channels)
+                population.append(player)
+        else:
+            ids = random.sample(list(range(self.n_of_agents)), self.n_of_agents)
+            for s in range(self.num_of_channels):
+                for i in range(self.initial_condition[s]):
+                    player = Drone(ids.pop(), self.num_of_channels, s)
+                    population.append(player)
         return population
 
     def get_player(self):
@@ -137,7 +123,7 @@ class DronePopulation(object):
 
     def get_strategy_distribution(self):
         strategies = [player.strategy for player in self.population]
-        distribution = np.histogram(strategies, bins=list(range(1, self.n_of_agents + 1)))[0]
+        distribution = np.histogram(strategies, bins=list(range(self.num_of_channels + 1)))[0]
         plt.show()
         return distribution
 
@@ -146,7 +132,7 @@ class DronePopulation(object):
         Under the best experienced payoff protocol, a revising agent tests each of the 'n_of_candidates' of strategies
         against a random agent, with each play of each strategy being against a newly drawn opponent. The revising agent
         then selects the strategy that obtained the greater payoff in the test, with ties resolved at random.
-        :param population:
+
         :param game:
         :return:
         """
@@ -217,24 +203,6 @@ class DroneGame(object):
         for i in range(n):
             payoff_matrix[i, i] = i + 1
         return payoff_matrix
-
-    def rule_of_revision(self):
-        pass
-
-    def protocol_of_revision(self):
-        pass
-
-    def assignment_of_revision_opportunities(self):
-        pass
-
-    def candidate_selection(self):
-        pass
-
-    def matching(self):
-        pass
-
-    def decision_method(self):
-        pass
 
     def play_drone_game(self, player_1_instance, player_2_instance):
         player_1 = player_1_instance.set_strategy()
