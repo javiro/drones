@@ -191,7 +191,7 @@ class DroneGame(object):
         return player_1 @ self.payoff_matrix @ player_2
 
     def get_test_strategies(self, player_instance):
-        return [*[player_instance.strategy], *random.sample(list(range(self.num_of_channels)), self.n_of_candidates)]
+        return [*[player_instance.strategy], *random.sample(list(range(self.num_of_channels)), self.n_of_candidates - 1)]
 
     def update_strategies(self):
         """
@@ -220,18 +220,20 @@ class DroneGame(object):
         """
         for g in range(1, self.game_rounds):
             self.update_strategies()
+            if g % 10 == 0:
+                print("Round {}: {}".format(g, self.drones.get_strategy_distribution()))
         return self.drones.get_strategy_distribution()
 
 
 def main():
-    game_rounds = 10
+    game_rounds = 500
     num_of_channels = 5
     n_of_agents = 200
-    n_of_candidates = 2
-    random_initial_condition = 'ON'
-    prob_revision = 0.5
+    n_of_candidates = 5
+    random_initial_condition = [200, 0, 0, 0, 0]
+    prob_revision = 0.2
     n_of_revisions_per_tick = 10
-    n_of_trials = 10
+    n_of_trials = 1
     use_prob_revision = 'OFF'
 
     g = DroneGame(game_rounds,
