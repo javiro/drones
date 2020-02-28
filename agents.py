@@ -155,7 +155,8 @@ class DroneGame(object):
     """
 
     def __init__(self, game_rounds, num_of_channels, n_of_agents, n_of_candidates, random_initial_condition,
-                 prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='OFF'):
+                 prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='OFF',
+                 ticks_per_second=5):
         """
         Complete matching is off since BEP does not consider it. Then the agents play his current strategy against a
         random sample of opponents. The size of this sample is specified by the parameter n-of-trials.
@@ -176,6 +177,7 @@ class DroneGame(object):
         :param n_of_trials: specifies the size of the sample of opponents to test the strategies with.
         :param use_prob_revision: defines the assignment of revision opportunities to agents. If it is on, then
             assignments are stochastic and independent.
+        :param ticks_per_second: Number of ticks per second.
         """
         # Set internal parameters
         self.game_rounds = game_rounds
@@ -189,6 +191,7 @@ class DroneGame(object):
         self.use_prob_revision = use_prob_revision
         self.payoff_matrix = self.get_payoff_matrix()
         self.drones = DronePopulation(self.n_of_agents, self.num_of_channels, self.random_initial_condition)
+        self.ticks_per_second = ticks_per_second
 
     def get_payoff_matrix(self):
         n = self.num_of_channels
@@ -233,13 +236,14 @@ class DroneGame(object):
         """
         for g in range(1, self.game_rounds):
             self.update_strategies()
-            if g % 10 == 0:
-                print("Round {}: {}".format(g, self.drones.get_strategy_distribution()))
+            if g % self.ticks_per_second == 0:
+                print("Second {}: {}".format(g / self.ticks_per_second, self.drones.get_strategy_distribution()))
         return self.drones.get_strategy_distribution()
 
 
 def main():
-    game_rounds = 500
+    game_rounds = 200
+    ticks_per_second = 5
     num_of_channels = 5
     n_of_agents = 200
     n_of_candidates = 5
@@ -257,7 +261,8 @@ def main():
                   prob_revision,
                   n_of_revisions_per_tick,
                   n_of_trials,
-                  use_prob_revision)
+                  use_prob_revision,
+                  ticks_per_second)
 
     print(g.drones.get_strategy_distribution())
     g.simulate_drone_game()
