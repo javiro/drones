@@ -1,6 +1,6 @@
 import numpy as np
 import random
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
 
 
 def plot_states(sli, sl):
@@ -53,7 +53,7 @@ class Drone(object):
             self.strategy = strategy
             trials = []
             for trial in range(game.n_of_trials):
-                trials.append(game.play_drone_game(self, population.get_player()))
+                trials.append(game.play_drone_game(self, population.get_player(self)))
             games.append(max(trials))
         games = np.array(games)
         self.strategy = n_of_candidates[random.choice(np.where(games == np.max(games))[0])]
@@ -73,7 +73,7 @@ class DronePopulation(object):
 
     """
 
-    def __init__(self, n_of_agents, num_of_channels, random_initial_condition='ON'):
+    def __init__(self, n_of_agents, num_of_channels, random_initial_condition='ON', consider_imitating_self=False):
         """
         Parameters
         ----------
@@ -87,6 +87,7 @@ class DronePopulation(object):
         self.random_initial_condition = random_initial_condition
         self.initial_condition = self.get_initial_condition(random_initial_condition)
         self.population = self.populate_group()
+        self.consider_imitating_self = consider_imitating_self
 
     def get_initial_condition(self, random_initial_condition):
         if random_initial_condition == 'ON':
@@ -111,8 +112,19 @@ class DronePopulation(object):
                     population.append(player)
         return population
 
-    def get_player(self):
-        return np.random.choice(self.population)
+    def get_player(self, player_1):
+        """
+        Returns an opponent avoiding the play of a player with himself.
+        :param player_1:
+        :return:
+        """
+        player_2 = np.random.choice(self.population)
+        if self.consider_imitating_self:
+            return player_2
+        else:
+            while player_2 == player_1:
+                player_2 = np.random.choice(self.population)
+            return player_2
 
     def get_revising_population(self, prob_revision):
         sample_size = int(prob_revision * self.n_of_agents)
@@ -191,7 +203,8 @@ class DroneGame(object):
         return player_1 @ self.payoff_matrix @ player_2
 
     def get_test_strategies(self, player_instance):
-        return [*[player_instance.strategy], *random.sample(list(range(self.num_of_channels)), self.n_of_candidates - 1)]
+        return [*[player_instance.strategy],
+                *random.sample(list(range(self.num_of_channels)), self.n_of_candidates - 1)]
 
     def update_strategies(self):
         """
