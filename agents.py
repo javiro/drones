@@ -1,6 +1,7 @@
 import numpy as np
 import random
 from matplotlib import pyplot as plt
+from matplotlib import animation
 
 
 def plot_states(sli, sl):
@@ -11,6 +12,55 @@ def plot_states(sli, sl):
     axes_initial.set_ylabel('Initial')
     axes_end.set_ylabel('End')
     plt.show()
+
+
+# # First set up the figure, the axis, and the plot element we want to animate
+# length_x = 2
+# fig = plt.figure()
+# ax = plt.axes(xlim=(0, length_x), ylim=(-2, 2))
+# line, = ax.plot([], [], lw=2)
+#
+#
+# # initialization function: plot the background of each frame
+# def init():
+#     line.set_data([], [])
+#     return line,
+#
+#
+# # animation function.  This is called sequentially
+# def animate(i, perc_bars):
+#     r = list(range(i))
+#     barWidth = length_x / len(r)
+#     color = 0
+#     # Create green Bars
+#     for b in range(len(perc_bars) - 1):
+#         plt.bar(r, perc_bars[b], color=color, edgecolor='white', width=barWidth)
+#         color += 1
+#     # Create blue Bars
+#     plt.bar(r, perc_bars[-1], bottom=[sum([a[i] for a in perc_bars]) for i in range(len(perc_bars[0]))],
+#             color=color,
+#             edgecolor='white',
+#             width=barWidth)
+#
+#     # # Custom x axis
+#     # plt.xticks(r, names)
+#     # plt.xlabel("group")
+#
+#     line.set_data(x, y)
+#     return line,
+#
+#
+# # call the animator.  blit=True means only re-draw the parts that have changed.
+#
+# anim = animation.FuncAnimation(fig, animate, init_func=init, frames=200, interval=20, blit=True)
+# # save the animation as an mp4.  This requires ffmpeg or mencoder to be
+# # installed.  The extra_args ensure that the x264 codec is used, so that
+# # the video can be embedded in html5.  You may need to adjust this for
+# # your system: for more information, see
+# # http://matplotlib.sourceforge.net/api/animation_api.html
+# anim.save('basic_animation.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
+#
+# plt.show()
 
 
 class Drone(object):
@@ -32,9 +82,9 @@ class Drone(object):
         else:
             self.strategy = strategy
 
-    def set_strategy(self):
+    def set_strategy(self, strategy):
         player = np.zeros(self.num_of_channels)
-        player[self.strategy] = 1
+        player[strategy] = 1
         return player
 
     def update_strategy(self, population, game):
@@ -50,13 +100,38 @@ class Drone(object):
         games = []
         n_of_candidates = game.get_test_strategies(self)
         for strategy in n_of_candidates:
-            self.strategy = strategy
             trials = []
             for trial in range(game.n_of_trials):
-                trials.append(game.play_drone_game(self, population.get_player(self)))
+                player_2 = population.get_player(self)
+                trials.append(game.play_drone_game(self.set_strategy(strategy),
+                                                   player_2.set_strategy(player_2.strategy)))
             games.append(max(trials))
         games = np.array(games)
         self.strategy = n_of_candidates[random.choice(np.where(games == np.max(games))[0])]
+
+    def update_strategy_in_sync(self, population, game):
+        """
+        Under the best experienced payoff protocol, a revising agent tests each of the 'n_of_candidates' of strategies
+        against a random agent, with each play of each strategy being against a newly drawn opponent. The revising agent
+        then selects the strategy that obtained the greater payoff in the test, with ties resolved at random.
+        :param population:
+        :param game:
+        :return:
+        """
+
+        games = []
+        n_of_candidates = game.get_test_strategies(self)
+        for strategy in n_of_candidates:
+            trials = []
+            for trial in range(game.n_of_trials):
+                player_2 = population.get_player(self)
+                trials.append(game.play_drone_game(self.set_strategy(strategy),
+                                                   player_2.set_strategy(player_2.strategy)))
+            games.append(max(trials))
+        games = np.array(games)
+        strategy = n_of_candidates[random.choice(np.where(games == np.max(games))[0])]
+        # print("salida {}".format(self.strategy))
+        return strategy
 
 
 class DronePopulation(object):
@@ -156,7 +231,7 @@ class DroneGame(object):
 
     def __init__(self, game_rounds, num_of_channels, n_of_agents, n_of_candidates, random_initial_condition,
                  prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='OFF',
-                 ticks_per_second=5):
+                 ticks_per_second=5, synchrony='ON'):
         """
         Complete matching is off since BEP does not consider it. Then the agents play his current strategy against a
         random sample of opponents. The size of this sample is specified by the parameter n-of-trials.
@@ -178,6 +253,7 @@ class DroneGame(object):
         :param use_prob_revision: defines the assignment of revision opportunities to agents. If it is on, then
             assignments are stochastic and independent.
         :param ticks_per_second: Number of ticks per second.
+        :param synchrony: The revising agents update their strategies at the same time.
         """
         # Set internal parameters
         self.game_rounds = game_rounds
@@ -192,6 +268,7 @@ class DroneGame(object):
         self.payoff_matrix = self.get_payoff_matrix()
         self.drones = DronePopulation(self.n_of_agents, self.num_of_channels, self.random_initial_condition)
         self.ticks_per_second = ticks_per_second
+        self.synchrony = synchrony
 
     def get_payoff_matrix(self):
         n = self.num_of_channels
@@ -200,9 +277,7 @@ class DroneGame(object):
             payoff_matrix[i, i] = i + 1
         return payoff_matrix
 
-    def play_drone_game(self, player_1_instance, player_2_instance):
-        player_1 = player_1_instance.set_strategy()
-        player_2 = player_2_instance.set_strategy()
+    def play_drone_game(self, player_1, player_2):
         return player_1 @ self.payoff_matrix @ player_2
 
     def get_test_strategies(self, player_instance):
@@ -218,14 +293,24 @@ class DroneGame(object):
         :param game:
         :return:
         """
-
         sample_size = int(self.prob_revision * self.n_of_agents)
         if (sample_size == 0) & (random.random() < self.prob_revision):
             sample_size = 1
         revising_population = random.sample(list(range(self.n_of_agents)), sample_size)
 
-        for player_1 in revising_population:
-            self.drones.population[player_1].update_strategy(self.drones, self)
+        if self.synchrony == 'ON':
+            s = []
+            for player_1 in revising_population:
+                print("entrada {}".format(self.drones.population[player_1].strategy))
+                s.append(self.drones.population[player_1].update_strategy_in_sync(self.drones, self))
+
+            for player_1, st in zip(revising_population, s):
+                self.drones.population[player_1].strategy = st
+        else:
+            for player_1 in revising_population:
+                # print("entrada {}".format(self.drones.population[player_1].strategy))
+                self.drones.population[player_1].update_strategy(self.drones, self)
+                # print("salida {}".format(self.drones.population[player_1].strategy))
 
     def simulate_drone_game(self):
         """
@@ -247,11 +332,12 @@ def main():
     num_of_channels = 5
     n_of_agents = 200
     n_of_candidates = 5
-    random_initial_condition = [200, 0, 0, 0, 0]
+    random_initial_condition = [180, 20, 0, 0, 0]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
     use_prob_revision = 'OFF'
+    synchrony = 'OFF'
 
     g = DroneGame(game_rounds,
                   num_of_channels,
@@ -262,7 +348,8 @@ def main():
                   n_of_revisions_per_tick,
                   n_of_trials,
                   use_prob_revision,
-                  ticks_per_second)
+                  ticks_per_second,
+                  synchrony)
 
     print(g.drones.get_strategy_distribution())
     g.simulate_drone_game()
