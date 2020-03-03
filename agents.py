@@ -14,53 +14,26 @@ def plot_states(sli, sl):
     plt.show()
 
 
-# # First set up the figure, the axis, and the plot element we want to animate
-# length_x = 2
-# fig = plt.figure()
-# ax = plt.axes(xlim=(0, length_x), ylim=(-2, 2))
-# line, = ax.plot([], [], lw=2)
-#
-#
-# # initialization function: plot the background of each frame
-# def init():
-#     line.set_data([], [])
-#     return line,
-#
-#
-# # animation function.  This is called sequentially
-# def animate(i, perc_bars):
-#     r = list(range(i))
-#     barWidth = length_x / len(r)
-#     color = 0
-#     # Create green Bars
-#     for b in range(len(perc_bars) - 1):
-#         plt.bar(r, perc_bars[b], color=color, edgecolor='white', width=barWidth)
-#         color += 1
-#     # Create blue Bars
-#     plt.bar(r, perc_bars[-1], bottom=[sum([a[i] for a in perc_bars]) for i in range(len(perc_bars[0]))],
-#             color=color,
-#             edgecolor='white',
-#             width=barWidth)
-#
-#     # # Custom x axis
-#     # plt.xticks(r, names)
-#     # plt.xlabel("group")
-#
-#     line.set_data(x, y)
-#     return line,
-#
-#
-# # call the animator.  blit=True means only re-draw the parts that have changed.
-#
-# anim = animation.FuncAnimation(fig, animate, init_func=init, frames=200, interval=20, blit=True)
-# # save the animation as an mp4.  This requires ffmpeg or mencoder to be
-# # installed.  The extra_args ensure that the x264 codec is used, so that
-# # the video can be embedded in html5.  You may need to adjust this for
-# # your system: for more information, see
-# # http://matplotlib.sourceforge.net/api/animation_api.html
-# anim.save('basic_animation.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
-#
-# plt.show()
+# First set up the figure, the axis, and the plot element we want to animate
+length_x = 2
+fig = plt.figure()
+ax = plt.axes(xlim=(0, length_x), ylim=(-2, 2))
+line = ax.plot([])
+
+
+# initialization function: plot the background of each frame
+def init():
+    line.set_data([])
+    return line
+
+
+# animation function.  This is called sequentially
+def animate(i):
+    line.set_data(b[:i])
+    return line
+
+
+# call the animator.  blit=True means only re-draw the parts that have changed.
 
 
 class Drone(object):
@@ -101,6 +74,7 @@ class Drone(object):
         n_of_candidates = game.get_test_strategies(self)
         for strategy in n_of_candidates:
             trials = []
+            self.strategy = strategy
             for trial in range(game.n_of_trials):
                 player_2 = population.get_player(self)
                 trials.append(game.play_drone_game(self.set_strategy(strategy),
@@ -148,7 +122,7 @@ class DronePopulation(object):
 
     """
 
-    def __init__(self, n_of_agents, num_of_channels, random_initial_condition='ON', consider_imitating_self=False):
+    def __init__(self, n_of_agents, num_of_channels, random_initial_condition='ON', consider_imitating_self=True):
         """
         Parameters
         ----------
@@ -170,6 +144,7 @@ class DronePopulation(object):
             return random_initial_distribution
 
         elif sum(random_initial_condition) == self.n_of_agents:
+            assert len(random_initial_condition) == self.num_of_channels
             random_initial_distribution = random_initial_condition
             return random_initial_distribution
 
@@ -231,7 +206,7 @@ class DroneGame(object):
 
     def __init__(self, game_rounds, num_of_channels, n_of_agents, n_of_candidates, random_initial_condition,
                  prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='OFF',
-                 ticks_per_second=5, synchrony='ON'):
+                 ticks_per_second=5, synchrony='ON', payoff_matrix=None):
         """
         Complete matching is off since BEP does not consider it. Then the agents play his current strategy against a
         random sample of opponents. The size of this sample is specified by the parameter n-of-trials.
@@ -265,22 +240,28 @@ class DroneGame(object):
         self.n_of_revisions_per_tick = n_of_revisions_per_tick
         self.n_of_trials = n_of_trials
         self.use_prob_revision = use_prob_revision
-        self.payoff_matrix = self.get_payoff_matrix()
+        self.payoff_matrix = self.get_payoff_matrix(payoff_matrix)
         self.drones = DronePopulation(self.n_of_agents, self.num_of_channels, self.random_initial_condition)
         self.ticks_per_second = ticks_per_second
         self.synchrony = synchrony
 
-    def get_payoff_matrix(self):
+    def get_payoff_matrix(self, payoff_matrix):
         n = self.num_of_channels
-        payoff_matrix = np.zeros((n, n))
-        for i in range(n):
-            payoff_matrix[i, i] = i + 1
-        return payoff_matrix
+        if payoff_matrix is None:
+            payoff_matrix = np.zeros((n, n))
+            for i in range(n):
+                payoff_matrix[i, i] = i + 1
+            return payoff_matrix
+        else:
+            payoff_matrix = np.array(payoff_matrix)
+            assert payoff_matrix.shape == (n, n)
+            return np.array(payoff_matrix)
 
     def play_drone_game(self, player_1, player_2):
         return player_1 @ self.payoff_matrix @ player_2
 
     def get_test_strategies(self, player_instance):
+        assert self.n_of_candidates == self.num_of_channels
         return [*[player_instance.strategy],
                 *random.sample(list(range(self.num_of_channels)), self.n_of_candidates - 1)]
 
@@ -319,25 +300,29 @@ class DroneGame(object):
         agent then selects the strategy that obtained the greater payoff in the test, with ties resolved at random.
         :return:
         """
+        plot_dist = []
         for g in range(1, self.game_rounds):
             self.update_strategies()
             if g % self.ticks_per_second == 0:
-                print("Second {}: {}".format(g / self.ticks_per_second, self.drones.get_strategy_distribution()))
-        return self.drones.get_strategy_distribution()
+                distribution = self.drones.get_strategy_distribution()
+                plot_dist.append(distribution[0] / sum(distribution))
+                print("Second {}: {}".format(g / self.ticks_per_second, distribution))
+        return self.drones.get_strategy_distribution(), plot_dist
 
 
 def main():
-    game_rounds = 200
+    game_rounds = 100
     ticks_per_second = 5
-    num_of_channels = 5
+    num_of_channels = 2
     n_of_agents = 200
-    n_of_candidates = 5
-    random_initial_condition = [180, 20, 0, 0, 0]
+    n_of_candidates = num_of_channels
+    random_initial_condition = [0, 200]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
     use_prob_revision = 'OFF'
     synchrony = 'OFF'
+    payoff_matrix = [[0, 1], [1, 0]]
 
     g = DroneGame(game_rounds,
                   num_of_channels,
@@ -349,7 +334,8 @@ def main():
                   n_of_trials,
                   use_prob_revision,
                   ticks_per_second,
-                  synchrony)
+                  synchrony,
+                  payoff_matrix)
 
     print(g.drones.get_strategy_distribution())
     g.simulate_drone_game()
