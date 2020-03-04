@@ -303,16 +303,17 @@ class DroneGame(object):
 def main():
     game_rounds = 500
     ticks_per_second = 5
-    num_of_channels = 5
+    num_of_channels = 2
     n_of_agents = 200
     n_of_candidates = num_of_channels
-    random_initial_condition = [40, 40, 40, 40, 40]
+    random_initial_condition = [40, 160]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
     use_prob_revision = 'OFF'
     synchrony = 'OFF'
-    payoff_matrix = [[-5, -1], [-10, -2]]
+    prisioner_matrix = [[-5, -1], [-10, -2]]
+    penalti_matrix = [[0, 1], [1, 0]]
 
     g = DroneGame(game_rounds,
                   num_of_channels,
@@ -324,7 +325,8 @@ def main():
                   n_of_trials,
                   use_prob_revision,
                   ticks_per_second,
-                  synchrony)
+                  synchrony,
+                  prisioner_matrix)
 
     print(g.drones.get_strategy_distribution())
     g.simulate_drone_game()
