@@ -3,6 +3,7 @@ import random
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
+import pandas as pd
 
 sns.set(style="whitegrid")
 
@@ -274,6 +275,17 @@ class DroneGame(object):
                 self.drones.population[player_1].update_strategy(self.drones, self)
                 # print("salida {}".format(self.drones.population[player_1].strategy))
 
+    def plot_distributions(self, g, plot_dist):
+        distribution = self.drones.get_strategy_distribution()
+        a = np.cumsum(distribution[:-1])
+        plot_dist.append(np.array([*a, *[distribution[-1]]]) / sum(distribution))
+        df_plot_dist = pd.DataFrame(plot_dist)
+        sns.lineplot(data=df_plot_dist, legend=False)
+        plt.title("Second {}".format(g / self.ticks_per_second))
+        plt.draw()
+        plt.pause(0.1)
+        print("Second {}: {}".format(g / self.ticks_per_second, distribution))
+
     def simulate_drone_game(self):
         """
         Under the best experienced payoff protocol, a revising agent tests each of the 'n_of_candidates' of strategies
@@ -281,6 +293,7 @@ class DroneGame(object):
         agent then selects the strategy that obtained the greater payoff in the test, with ties resolved at random.
         :return:
         """
+        plt.figure()
         length_x = self.game_rounds / self.ticks_per_second
         ax = plt.axes(xlim=(0, length_x), ylim=(0, 1))
         plt.xlabel("Seconds")
@@ -290,31 +303,24 @@ class DroneGame(object):
         for g in range(1, self.game_rounds):
             self.update_strategies()
             if g % self.ticks_per_second == 0:
-                x = range(int(g / self.ticks_per_second))
-                distribution = self.drones.get_strategy_distribution()
-                plot_dist.append(1 - (distribution[0] / sum(distribution)))
-                ax.plot(x, plot_dist, '-b')
-                plt.title("Second {}".format(g / self.ticks_per_second))
-                plt.draw()
-                plt.pause(0.1)
-                print("Second {}: {}".format(g / self.ticks_per_second, distribution))
+                self.plot_distributions(g, plot_dist)
         plt.show(block=True)
         return self.drones.get_strategy_distribution(), plot_dist
 
 
 def main():
-    game_rounds = 1000
+    game_rounds = 500
     ticks_per_second = 5
-    num_of_channels = 2
+    num_of_channels = 5
     n_of_agents = 200
     n_of_candidates = num_of_channels
-    random_initial_condition = [200, 0]
+    random_initial_condition = [40, 40, 40, 40, 40]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
     use_prob_revision = 'OFF'
     synchrony = 'OFF'
-    payoff_matrix = [[0, 1], [1, 0]]
+    payoff_matrix = [[-5, -1], [-10, -2]]
 
     g = DroneGame(game_rounds,
                   num_of_channels,
@@ -326,8 +332,7 @@ def main():
                   n_of_trials,
                   use_prob_revision,
                   ticks_per_second,
-                  synchrony,
-                  payoff_matrix)
+                  synchrony)
 
     print(g.drones.get_strategy_distribution())
     g.simulate_drone_game()
