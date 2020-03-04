@@ -256,24 +256,16 @@ class DroneGame(object):
         :param game:
         :return:
         """
-        sample_size = int(self.prob_revision * self.n_of_agents)
-        if (sample_size == 0) & (random.random() < self.prob_revision):
-            sample_size = 1
-        revising_population = random.sample(list(range(self.n_of_agents)), sample_size)
+        s = []
+        for player_1 in self.drones.population:
+            # print("entrada {}".format(player_1.strategy))
+            if random.random() < self.prob_revision:
+                s.append(player_1.update_strategy_in_sync(self.drones, self))
+            else:
+                s.append(player_1.strategy)
 
-        if self.synchrony == 'ON':
-            s = []
-            for player_1 in revising_population:
-                print("entrada {}".format(self.drones.population[player_1].strategy))
-                s.append(self.drones.population[player_1].update_strategy_in_sync(self.drones, self))
-
-            for player_1, st in zip(revising_population, s):
-                self.drones.population[player_1].strategy = st
-        else:
-            for player_1 in revising_population:
-                # print("entrada {}".format(self.drones.population[player_1].strategy))
-                self.drones.population[player_1].update_strategy(self.drones, self)
-                # print("salida {}".format(self.drones.population[player_1].strategy))
+        for player_1, st in zip(self.drones.population, s):
+            player_1.strategy = st
 
     def plot_distributions(self, g, plot_dist):
         distribution = self.drones.get_strategy_distribution()
