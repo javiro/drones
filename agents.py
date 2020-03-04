@@ -1,7 +1,10 @@
-import numpy as np
 import random
+
+import numpy as np
+import seaborn as sns
 from matplotlib import pyplot as plt
-from matplotlib import animation
+
+sns.set(style="whitegrid")
 
 
 def plot_states(sli, sl):
@@ -12,28 +15,6 @@ def plot_states(sli, sl):
     axes_initial.set_ylabel('Initial')
     axes_end.set_ylabel('End')
     plt.show()
-
-
-# First set up the figure, the axis, and the plot element we want to animate
-length_x = 2
-fig = plt.figure()
-ax = plt.axes(xlim=(0, length_x), ylim=(-2, 2))
-line = ax.plot([])
-
-
-# initialization function: plot the background of each frame
-def init():
-    line.set_data([])
-    return line
-
-
-# animation function.  This is called sequentially
-def animate(i):
-    line.set_data(b[:i])
-    return line
-
-
-# call the animator.  blit=True means only re-draw the parts that have changed.
 
 
 class Drone(object):
@@ -300,23 +281,34 @@ class DroneGame(object):
         agent then selects the strategy that obtained the greater payoff in the test, with ties resolved at random.
         :return:
         """
+        length_x = self.game_rounds / self.ticks_per_second
+        ax = plt.axes(xlim=(0, length_x), ylim=(0, 1))
+        plt.xlabel("Seconds")
+        plt.ylabel("Distribution")
         plot_dist = []
+        plt.ion()
         for g in range(1, self.game_rounds):
             self.update_strategies()
             if g % self.ticks_per_second == 0:
+                x = range(int(g / self.ticks_per_second))
                 distribution = self.drones.get_strategy_distribution()
-                plot_dist.append(distribution[0] / sum(distribution))
+                plot_dist.append(1 - (distribution[0] / sum(distribution)))
+                ax.plot(x, plot_dist, '-b')
+                plt.title("Second {}".format(g / self.ticks_per_second))
+                plt.draw()
+                plt.pause(0.1)
                 print("Second {}: {}".format(g / self.ticks_per_second, distribution))
+        plt.show(block=True)
         return self.drones.get_strategy_distribution(), plot_dist
 
 
 def main():
-    game_rounds = 100
+    game_rounds = 1000
     ticks_per_second = 5
     num_of_channels = 2
     n_of_agents = 200
     n_of_candidates = num_of_channels
-    random_initial_condition = [0, 200]
+    random_initial_condition = [200, 0]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
