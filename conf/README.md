@@ -4,10 +4,9 @@ Este directorio contiene los ficheros de configuración del modelo.
 
 ## Configuración General
 
-El fichero **config.cfg** contiene los parámetros necesarios para adaptar la ejecución al negocio:
+El fichero **config.cfg** contiene los parámetros del modelo:
 
     [Model]
-     FROM_MONTH: primer día del mes inicial a procesar en formato YYYY-MM-DD
      PAYOFF_MATRIX :  [[1 0] [0 2]] ,
      N_OF_AGENTS :  200 ,
      RANDOM_INITIAL_CONDITION : False,
