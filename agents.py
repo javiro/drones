@@ -272,7 +272,11 @@ class DroneGame(object):
         a = np.cumsum(distribution[:-1])
         plot_dist.append(np.array([*a, *[distribution[-1]]]) / sum(distribution))
         df_plot_dist = pd.DataFrame(plot_dist)
-        sns.lineplot(data=df_plot_dist, legend=False)
+        if g == self.ticks_per_second:
+            legend = 'brief'
+        else:
+            legend = False
+        sns.lineplot(data=df_plot_dist, legend=legend)
         plt.title("Second {}".format(g / self.ticks_per_second))
         plt.draw()
         plt.pause(0.1)
