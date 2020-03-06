@@ -8,16 +8,6 @@ import pandas as pd
 sns.set(style="whitegrid")
 
 
-def plot_states(sli, sl):
-    axes_initial = plt.subplot(211)
-    plt.imshow(sli)
-    axes_end = plt.subplot(212)
-    plt.imshow(sl)
-    axes_initial.set_ylabel('Initial')
-    axes_end.set_ylabel('End')
-    plt.show()
-
-
 class Drone(object):
     """
     Class which implements the agents in drone communication game.
@@ -86,7 +76,6 @@ class Drone(object):
             games.append(max(trials))
         games = np.array(games)
         strategy = n_of_candidates[random.choice(np.where(games == np.max(games))[0])]
-        # print("salida {}".format(self.strategy))
         return strategy
 
 
@@ -188,7 +177,7 @@ class DroneGame(object):
 
     def __init__(self, game_rounds, num_of_channels, n_of_agents, n_of_candidates, random_initial_condition,
                  prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='OFF',
-                 ticks_per_second=5, synchrony='ON', payoff_matrix=None):
+                 ticks_per_second=5, synchrony='ON', consider_imitating_self=True, payoff_matrix=None):
         """
         Complete matching is off since BEP does not consider it. Then the agents play his current strategy against a
         random sample of opponents. The size of this sample is specified by the parameter n-of-trials.
@@ -211,6 +200,8 @@ class DroneGame(object):
             assignments are stochastic and independent.
         :param ticks_per_second: Number of ticks per second.
         :param synchrony: The revising agents update their strategies at the same time.
+        :param consider_imitating_self:
+        :param payoff_matrix:
         """
         # Set internal parameters
         self.game_rounds = game_rounds
@@ -222,8 +213,12 @@ class DroneGame(object):
         self.n_of_revisions_per_tick = n_of_revisions_per_tick
         self.n_of_trials = n_of_trials
         self.use_prob_revision = use_prob_revision
+        self.consider_imitating_self = consider_imitating_self
         self.payoff_matrix = self.get_payoff_matrix(payoff_matrix)
-        self.drones = DronePopulation(self.n_of_agents, self.num_of_channels, self.random_initial_condition)
+        self.drones = DronePopulation(self.n_of_agents,
+                                      self.num_of_channels,
+                                      self.random_initial_condition,
+                                      self.consider_imitating_self)
         self.ticks_per_second = ticks_per_second
         self.synchrony = synchrony
 
@@ -256,27 +251,21 @@ class DroneGame(object):
         :param game:
         :return:
         """
-        s = []
         for player_1 in self.drones.population:
-            # print("entrada {}".format(player_1.strategy))
             if random.random() < self.prob_revision:
-                s.append(player_1.update_strategy_in_sync(self.drones, self))
-            else:
-                s.append(player_1.strategy)
+                player_1.update_strategy(self.drones, self)
 
-        for player_1, st in zip(self.drones.population, s):
-            player_1.strategy = st
-
-    def plot_distributions(self, g, plot_dist):
+    def plot_distributions(self, g, plot_dist, ax):
         distribution = self.drones.get_strategy_distribution()
-        a = np.cumsum(distribution[:-1])
-        plot_dist.append(np.array([*a, *[distribution[-1]]]) / sum(distribution))
+        a = np.cumsum(distribution)
+        plot_dist.append(a / sum(distribution))
         df_plot_dist = pd.DataFrame(plot_dist)
-        if g == self.ticks_per_second:
-            legend = 'brief'
-        else:
-            legend = False
-        sns.lineplot(data=df_plot_dist, legend=legend)
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+        df_plot_dist.columns = ['c{}'.format(i) for i in range(len(df_plot_dist.columns))]
+        plt.stackplot(df_plot_dist.index,
+                      [df_plot_dist['{}'.format(c)].values for c in df_plot_dist.columns],
+                      colors=colors[:len(a)],
+                      labels=list(range(len(a))))
         plt.title("Second {}".format(g / self.ticks_per_second))
         plt.draw()
         plt.pause(0.1)
@@ -299,7 +288,7 @@ class DroneGame(object):
         for g in range(1, self.game_rounds):
             self.update_strategies()
             if g % self.ticks_per_second == 0:
-                self.plot_distributions(g, plot_dist)
+                self.plot_distributions(g, plot_dist, ax)
         plt.show(block=True)
         return self.drones.get_strategy_distribution(), plot_dist
 
@@ -310,12 +299,13 @@ def main():
     num_of_channels = 3
     n_of_agents = 200
     n_of_candidates = num_of_channels
-    random_initial_condition = [40, 160, 0]
+    random_initial_condition = [200, 0, 0]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
     use_prob_revision = 'OFF'
     synchrony = 'OFF'
+    consider_imitating_self = True
     prisioner_matrix = [[-5, -1], [-10, -2]]
     penalti_matrix = [[0, 1], [1, 0]]
     flg = [[1, 2, 3], [4, 3, 4], [3, 2, 5]]
@@ -330,6 +320,7 @@ def main():
                   use_prob_revision,
                   ticks_per_second,
                   synchrony,
+                  consider_imitating_self,
                   flg)
 
     print(g.drones.get_strategy_distribution())
