@@ -23,7 +23,7 @@ class Drone(object):
         self.player_id = player_id
         self.num_of_channels = num_of_channels
         if strategy is None:
-            self.strategy = np.random.randint(num_of_channels)
+            self.strategy = random.randint(0, num_of_channels - 1)
         else:
             self.strategy = strategy
 
@@ -139,12 +139,14 @@ class DronePopulation(object):
         :param player_1:
         :return:
         """
-        player_2 = np.random.choice(self.population)
+        # player_2 = np.random.choice(self.population)
+        player_2 = self.population[random.randint(0, len(self.population) - 1)]
         if self.consider_imitating_self:
             return player_2
         else:
             while player_2 == player_1:
-                player_2 = np.random.choice(self.population)
+                # player_2 = np.random.choice(self.population)
+                player_2 = self.population[random.randint(0, len(self.population) - 1)]
             return player_2
 
     def get_revising_population(self, prob_revision):
