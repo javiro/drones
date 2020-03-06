@@ -258,14 +258,16 @@ class DroneGame(object):
     def plot_distributions(self, g, plot_dist, ax):
         distribution = self.drones.get_strategy_distribution()
         a = np.cumsum(distribution)
-        plot_dist.append(a / sum(distribution))
+        plot_dist.append(1 - a / sum(distribution))
         df_plot_dist = pd.DataFrame(plot_dist)
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'][:len(a) + 1]
+        labels = ['{}'.format(i) for i in range(len(a))]
         df_plot_dist.columns = ['c{}'.format(i) for i in range(len(df_plot_dist.columns))]
         plt.stackplot(df_plot_dist.index,
                       [df_plot_dist['{}'.format(c)].values for c in df_plot_dist.columns],
-                      colors=colors[:len(a)],
-                      labels=list(range(len(a))))
+                      [1.0 for i in range(len(df_plot_dist))],
+                      colors=colors,
+                      labels=labels)
         plt.title("Second {}".format(g / self.ticks_per_second))
         plt.draw()
         plt.pause(0.1)
@@ -285,7 +287,7 @@ class DroneGame(object):
         plt.ylabel("Distribution")
         plot_dist = []
         plt.ion()
-        for g in range(1, self.game_rounds):
+        for g in range(self.game_rounds):
             self.update_strategies()
             if g % self.ticks_per_second == 0:
                 self.plot_distributions(g, plot_dist, ax)
@@ -296,10 +298,10 @@ class DroneGame(object):
 def main():
     game_rounds = 500
     ticks_per_second = 5
-    num_of_channels = 3
+    num_of_channels = 4
     n_of_agents = 200
     n_of_candidates = num_of_channels
-    random_initial_condition = [200, 0, 0]
+    random_initial_condition = [200, 0, 0, 0]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
@@ -320,8 +322,7 @@ def main():
                   use_prob_revision,
                   ticks_per_second,
                   synchrony,
-                  consider_imitating_self,
-                  flg)
+                  consider_imitating_self)
 
     print(g.drones.get_strategy_distribution())
     g.simulate_drone_game()
