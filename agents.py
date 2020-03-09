@@ -159,7 +159,6 @@ class DronePopulation(object):
     def get_strategy_distribution(self):
         strategies = [player.strategy for player in self.population]
         distribution = np.histogram(strategies, bins=list(range(self.num_of_channels + 1)))[0]
-        plt.show()
         return distribution
 
 
@@ -178,8 +177,8 @@ class DroneGame(object):
     """
 
     def __init__(self, game_rounds, num_of_channels, n_of_agents, n_of_candidates, random_initial_condition,
-                 prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='OFF',
-                 ticks_per_second=5, synchrony='ON', consider_imitating_self=True, payoff_matrix=None):
+                 prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='ON',
+                 ticks_per_second=5, consider_imitating_self=True, payoff_matrix=None):
         """
         Complete matching is off since BEP does not consider it. Then the agents play his current strategy against a
         random sample of opponents. The size of this sample is specified by the parameter n-of-trials.
@@ -201,7 +200,6 @@ class DroneGame(object):
         :param use_prob_revision: defines the assignment of revision opportunities to agents. If it is on, then
             assignments are stochastic and independent.
         :param ticks_per_second: Number of ticks per second.
-        :param synchrony: The revising agents update their strategies at the same time.
         :param consider_imitating_self:
         :param payoff_matrix:
         """
@@ -222,7 +220,6 @@ class DroneGame(object):
                                       self.random_initial_condition,
                                       self.consider_imitating_self)
         self.ticks_per_second = ticks_per_second
-        self.synchrony = synchrony
 
     def get_payoff_matrix(self, payoff_matrix):
         n = self.num_of_channels
@@ -240,9 +237,10 @@ class DroneGame(object):
         return player_1 @ self.payoff_matrix @ player_2
 
     def get_test_strategies(self, player_instance):
-        assert self.n_of_candidates == self.num_of_channels
-        return [*[player_instance.strategy],
-                *random.sample(list(range(self.num_of_channels)), self.n_of_candidates - 1)]
+        strategies = list(range(self.num_of_channels))
+        strategies.remove(player_instance.strategy)
+        strategies.insert(0, player_instance.strategy)
+        return strategies
 
     def update_strategies(self):
         """
@@ -253,23 +251,24 @@ class DroneGame(object):
         :param game:
         :return:
         """
-        for player_1 in self.drones.population:
-            if random.random() < self.prob_revision:
+        if self.use_prob_revision == 'ON':
+            for player_1 in self.drones.population:
+                if random.random() < self.prob_revision:
+                    player_1.update_strategy(self.drones, self)
+        else:
+            revising_population = random.sample(self.drones.population, self.n_of_revisions_per_tick)
+            for player_1 in revising_population:
                 player_1.update_strategy(self.drones, self)
 
     def plot_distributions(self, g, plot_dist, ax):
         distribution = self.drones.get_strategy_distribution()
-        a = np.cumsum(distribution)
-        plot_dist.append(1 - a / sum(distribution))
+        plot_dist.append(distribution[::-1] / sum(distribution))
         df_plot_dist = pd.DataFrame(plot_dist)
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'][:len(a) + 1]
-        labels = ['{}'.format(i) for i in range(len(a))]
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'][:len(distribution)]
         df_plot_dist.columns = ['c{}'.format(i) for i in range(len(df_plot_dist.columns))]
         plt.stackplot(df_plot_dist.index,
                       [df_plot_dist['{}'.format(c)].values for c in df_plot_dist.columns],
-                      [1.0 for i in range(len(df_plot_dist))],
-                      colors=colors,
-                      labels=labels)
+                      colors=colors)
         plt.title("Second {}".format(g / self.ticks_per_second))
         plt.draw()
         plt.pause(0.1)
@@ -298,7 +297,7 @@ class DroneGame(object):
 
 
 def main():
-    game_rounds = 500
+    game_rounds = 1000
     ticks_per_second = 5
     num_of_channels = 4
     n_of_agents = 200
@@ -307,12 +306,12 @@ def main():
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
-    use_prob_revision = 'OFF'
-    synchrony = 'OFF'
+    use_prob_revision = 'ON'
     consider_imitating_self = True
     prisioner_matrix = [[-5, -1], [-10, -2]]
     penalti_matrix = [[0, 1], [1, 0]]
     flg = [[1, 2, 3], [4, 3, 4], [3, 2, 5]]
+    coordination = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     g = DroneGame(game_rounds,
                   num_of_channels,
                   n_of_agents,
@@ -323,7 +322,6 @@ def main():
                   n_of_trials,
                   use_prob_revision,
                   ticks_per_second,
-                  synchrony,
                   consider_imitating_self)
 
     print(g.drones.get_strategy_distribution())
