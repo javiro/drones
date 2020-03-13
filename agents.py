@@ -271,7 +271,7 @@ class DroneGame(object):
                       colors=colors)
         plt.title("Second {}".format(g / self.ticks_per_second))
         plt.draw()
-        plt.pause(0.1)
+        plt.pause(0.0001)
         print("Second {}: {}".format(g / self.ticks_per_second, distribution))
 
     def simulate_drone_game(self):
@@ -292,7 +292,8 @@ class DroneGame(object):
             self.update_strategies()
             if g % self.ticks_per_second == 0:
                 self.plot_distributions(g, plot_dist, ax)
-        plt.show(block=True)
+        # plt.show(block=True)
+        plt.show()
         return self.drones.get_strategy_distribution(), plot_dist
 
 
