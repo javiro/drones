@@ -4,6 +4,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
 import pandas as pd
+import scipy.special
 
 sns.set(style="whitegrid")
 
@@ -194,6 +195,7 @@ class DroneGame(object):
                                       self.random_initial_condition,
                                       self.consider_imitating_self)
         self.ticks_per_second = ticks_per_second
+        self.count_of_states = self.get_initial_count_of_states()
 
     def get_payoff_matrix(self, payoff_matrix):
         n = self.num_of_channels
@@ -258,6 +260,29 @@ class DroneGame(object):
         expectation = sum(x * f_bar * dx)
         return expectation
 
+    def get_initial_count_of_states(self):
+        num_of_states = int(scipy.special.binom(self.n_of_agents + self.num_of_channels - 1, self.num_of_channels - 1))
+        dist_of_states = np.zeros(num_of_states)
+        dist_of_states[self.random_initial_condition[1]] = 1
+        return dist_of_states
+
+    def get_count_of_states(self):
+        distribution = self.drones.get_strategy_distribution()
+        self.count_of_states[distribution[1]] += 1
+        return self.count_of_states
+
+    def get_mean_dynamics(self):
+        count_of_states = self.get_count_of_states()
+        # expectation = integral [x f_bar dx], f_bar = f / integral [f_dx]
+        # f_bar = distribution_of_states
+        # x = np.linspace(0.0, 1.0, len(count_of_states))  # We want the f_bar to give the probability of state n
+        x = range(len(count_of_states))
+        integral_f_dx = sum(count_of_states * np.diff(range(len(count_of_states) + 1)))
+        f_bar = count_of_states / integral_f_dx
+        dx = np.diff(range(len(count_of_states) + 1))
+        expectation = sum(x * f_bar * dx)
+        return expectation
+
     def simulate_drone_game(self):
         """
         Under the best experienced payoff protocol, a revising agent tests each of the 'n_of_candidates' of strategies
@@ -281,7 +306,8 @@ class DroneGame(object):
             if (g % self.ticks_per_second == 0) & (self.mean_dynamics == 'OFF'):
                 self.plot_distributions(g, plot_dist, ax)
             else:
-                expectation = self.get_expectation_value()
+                # expectation = self.get_expectation_value()
+                expectation = self.get_mean_dynamics()
                 mean_dynamic.append(expectation)
 
         if self.mean_dynamics == 'OFF':
@@ -293,12 +319,12 @@ class DroneGame(object):
 
 
 def main():
-    game_rounds = 200
+    game_rounds = 2000
     ticks_per_second = 5
-    num_of_channels = 4
+    num_of_channels = 2
     n_of_agents = 200
     n_of_candidates = num_of_channels
-    random_initial_condition = [200, 0, 0, 0]
+    random_initial_condition = [200, 0]
     prob_revision = 0.2
     n_of_revisions_per_tick = 10
     n_of_trials = 1
