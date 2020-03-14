@@ -55,29 +55,6 @@ class Drone(object):
         games = np.array(games)
         self.strategy = n_of_candidates[random.choice(np.where(games == np.max(games))[0])]
 
-    def update_strategy_in_sync(self, population, game):
-        """
-        Under the best experienced payoff protocol, a revising agent tests each of the 'n_of_candidates' of strategies
-        against a random agent, with each play of each strategy being against a newly drawn opponent. The revising agent
-        then selects the strategy that obtained the greater payoff in the test, with ties resolved at random.
-        :param population:
-        :param game:
-        :return:
-        """
-
-        games = []
-        n_of_candidates = game.get_test_strategies(self)
-        for strategy in n_of_candidates:
-            trials = []
-            for trial in range(game.n_of_trials):
-                player_2 = population.get_player(self)
-                trials.append(game.play_drone_game(self.set_strategy(strategy),
-                                                   player_2.set_strategy(player_2.strategy)))
-            games.append(max(trials))
-        games = np.array(games)
-        strategy = n_of_candidates[random.choice(np.where(games == np.max(games))[0])]
-        return strategy
-
 
 class DronePopulation(object):
     """
@@ -120,17 +97,12 @@ class DronePopulation(object):
             return random_initial_distribution
 
     def populate_group(self):
-        population = []
         if self.random_initial_condition == 'ON':
-            for i in range(self.n_of_agents):
-                player = Drone(i, self.num_of_channels)
-                population.append(player)
+            population = [Drone(i, self.num_of_channels) for i in range(self.n_of_agents)]
         else:
             ids = random.sample(list(range(self.n_of_agents)), self.n_of_agents)
-            for s in range(self.num_of_channels):
-                for i in range(self.initial_condition[s]):
-                    player = Drone(ids.pop(), self.num_of_channels, s)
-                    population.append(player)
+            population = [Drone(ids.pop(), self.num_of_channels, s)
+                          for s in range(self.num_of_channels) for i in range(self.initial_condition[s])]
         return population
 
     def get_player(self, player_1):
@@ -154,7 +126,7 @@ class DronePopulation(object):
         if (sample_size == 0) & (random.random() < prob_revision):
             sample_size = 1
         revising_population = random.sample(list(range(self.n_of_agents)), sample_size)
-        return [self.population[p] for p in revising_population]
+        return (self.population[p] for p in revising_population)
 
     def get_strategy_distribution(self):
         strategies = [player.strategy for player in self.population]
@@ -178,7 +150,7 @@ class DroneGame(object):
 
     def __init__(self, game_rounds, num_of_channels, n_of_agents, n_of_candidates, random_initial_condition,
                  prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='ON',
-                 ticks_per_second=5, consider_imitating_self=True, payoff_matrix=None):
+                 mean_dynamics='OFF', ticks_per_second=5, consider_imitating_self=True, payoff_matrix=None):
         """
         Complete matching is off since BEP does not consider it. Then the agents play his current strategy against a
         random sample of opponents. The size of this sample is specified by the parameter n-of-trials.
@@ -199,6 +171,7 @@ class DroneGame(object):
         :param n_of_trials: specifies the size of the sample of opponents to test the strategies with.
         :param use_prob_revision: defines the assignment of revision opportunities to agents. If it is on, then
             assignments are stochastic and independent.
+        :param mean_dynamics:
         :param ticks_per_second: Number of ticks per second.
         :param consider_imitating_self:
         :param payoff_matrix:
@@ -215,6 +188,7 @@ class DroneGame(object):
         self.use_prob_revision = use_prob_revision
         self.consider_imitating_self = consider_imitating_self
         self.payoff_matrix = self.get_payoff_matrix(payoff_matrix)
+        self.mean_dynamics = mean_dynamics
         self.drones = DronePopulation(self.n_of_agents,
                                       self.num_of_channels,
                                       self.random_initial_condition,
@@ -274,6 +248,16 @@ class DroneGame(object):
         plt.pause(0.0001)
         print("Second {}: {}".format(g / self.ticks_per_second, distribution))
 
+    def get_expectation_value(self):
+        distribution = self.drones.get_strategy_distribution()
+        # expectation = integral [x f_bar dx], f_bar = f / integral [f_dx]
+        x = range(self.num_of_channels)
+        integral_f_dx = sum(distribution * np.diff(range(self.num_of_channels + 1)))
+        f_bar = distribution / integral_f_dx
+        dx = np.diff(range(self.num_of_channels + 1))
+        expectation = sum(x * f_bar * dx)
+        return expectation
+
     def simulate_drone_game(self):
         """
         Under the best experienced payoff protocol, a revising agent tests each of the 'n_of_candidates' of strategies
@@ -283,22 +267,33 @@ class DroneGame(object):
         """
         plt.figure()
         length_x = self.game_rounds / self.ticks_per_second
-        ax = plt.axes(xlim=(0, length_x), ylim=(0, 1))
+        if self.mean_dynamics == 'OFF':
+            ax = plt.axes(xlim=(0, length_x), ylim=(0, 1))
+        else:
+            ax = plt.axes()
         plt.xlabel("Seconds")
         plt.ylabel("Distribution")
         plot_dist = []
+        mean_dynamic = []
         plt.ion()
         for g in range(self.game_rounds):
             self.update_strategies()
-            if g % self.ticks_per_second == 0:
+            if (g % self.ticks_per_second == 0) & (self.mean_dynamics == 'OFF'):
                 self.plot_distributions(g, plot_dist, ax)
-        # plt.show(block=True)
-        plt.show()
+            else:
+                expectation = self.get_expectation_value()
+                mean_dynamic.append(expectation)
+
+        if self.mean_dynamics == 'OFF':
+            plt.show()
+        else:
+            plt.plot(mean_dynamic)
+            plt.show(block=True)
         return self.drones.get_strategy_distribution(), plot_dist
 
 
 def main():
-    game_rounds = 1000
+    game_rounds = 200
     ticks_per_second = 5
     num_of_channels = 4
     n_of_agents = 200
@@ -309,6 +304,7 @@ def main():
     n_of_trials = 1
     use_prob_revision = 'ON'
     consider_imitating_self = True
+    mean_dynamics = 'ON'
     prisioner_matrix = [[-5, -1], [-10, -2]]
     penalti_matrix = [[0, 1], [1, 0]]
     flg = [[1, 2, 3], [4, 3, 4], [3, 2, 5]]
@@ -322,6 +318,7 @@ def main():
                   n_of_revisions_per_tick,
                   n_of_trials,
                   use_prob_revision,
+                  mean_dynamics,
                   ticks_per_second,
                   consider_imitating_self)
 
