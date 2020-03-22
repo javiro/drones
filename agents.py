@@ -151,7 +151,8 @@ class DroneGame(object):
 
     def __init__(self, game_rounds, num_of_channels, n_of_agents, n_of_candidates, random_initial_condition,
                  prob_revision=0.001, n_of_revisions_per_tick=10, n_of_trials=10, use_prob_revision='ON',
-                 mean_dynamics='OFF', ticks_per_second=5, consider_imitating_self=True, payoff_matrix=None):
+                 mean_dynamics='OFF', ticks_per_second=5, consider_imitating_self=True, payoff_matrix=None,
+                 microstates='OFF'):
         """
         Complete matching is off since BEP does not consider it. Then the agents play his current strategy against a
         random sample of opponents. The size of this sample is specified by the parameter n-of-trials.
@@ -176,6 +177,7 @@ class DroneGame(object):
         :param ticks_per_second: Number of ticks per second.
         :param consider_imitating_self:
         :param payoff_matrix:
+        :param microstates:
         """
         # Set internal parameters
         self.game_rounds = game_rounds
@@ -190,6 +192,7 @@ class DroneGame(object):
         self.consider_imitating_self = consider_imitating_self
         self.payoff_matrix = self.get_payoff_matrix(payoff_matrix)
         self.mean_dynamics = mean_dynamics
+        self.microstates = microstates
         self.drones = DronePopulation(self.n_of_agents,
                                       self.num_of_channels,
                                       self.random_initial_condition,
@@ -283,11 +286,12 @@ class DroneGame(object):
         expectation = sum(x * f_bar * dx)
         return expectation
 
-    def simulate_drone_game(self):
+    def simulate_drone_game(self, output_file):
         """
         Under the best experienced payoff protocol, a revising agent tests each of the 'n_of_candidates' of strategies
         against a random agent, with each play of each strategy being against a newly drawn opponent. The revising
         agent then selects the strategy that obtained the greater payoff in the test, with ties resolved at random.
+        :param output_file:
         :return:
         """
         plt.figure()
@@ -301,6 +305,9 @@ class DroneGame(object):
         plot_dist = []
         mean_dynamic = []
         plt.ion()
+        if self.microstates == 'ON':
+            f = open(output_file, 'a')
+
         for g in range(self.game_rounds):
             self.update_strategies()
             if (g % self.ticks_per_second == 0) & (self.mean_dynamics == 'OFF'):
@@ -309,6 +316,12 @@ class DroneGame(object):
                 # expectation = self.get_expectation_value()
                 expectation = self.get_mean_dynamics()
                 mean_dynamic.append(expectation)
+                if self.microstates == 'ON':
+                    [f.write('{},'.format(player.strategy)) for player in self.drones.population[:-1]]
+                    f.write('{}'.format(self.drones.population[-1].strategy))
+                    f.write('\n')
+        if self.microstates == 'ON':
+            f.close()
 
         if self.mean_dynamics == 'OFF':
             plt.show()
@@ -319,7 +332,7 @@ class DroneGame(object):
 
 
 def main():
-    game_rounds = 2000
+    game_rounds = 200
     ticks_per_second = 5
     num_of_channels = 2
     n_of_agents = 200
@@ -331,6 +344,7 @@ def main():
     use_prob_revision = 'ON'
     consider_imitating_self = True
     mean_dynamics = 'ON'
+    microstates = 'OFF'
     prisioner_matrix = [[-5, -1], [-10, -2]]
     penalti_matrix = [[0, 1], [1, 0]]
     flg = [[1, 2, 3], [4, 3, 4], [3, 2, 5]]
@@ -349,8 +363,25 @@ def main():
                   consider_imitating_self)
 
     print(g.drones.get_strategy_distribution())
-    g.simulate_drone_game()
+    g.simulate_drone_game('microstates')
     print(g.drones.get_strategy_distribution())
+
+    # for i in range(10):
+    #     g = DroneGame(game_rounds,
+    #                   num_of_channels,
+    #                   n_of_agents,
+    #                   n_of_candidates,
+    #                   random_initial_condition,
+    #                   prob_revision,
+    #                   n_of_revisions_per_tick,
+    #                   n_of_trials,
+    #                   use_prob_revision,
+    #                   mean_dynamics,
+    #                   ticks_per_second,
+    #                   consider_imitating_self,
+    #                   microstates=microstates)
+    #     g.simulate_drone_game('microstates{}'.format(i))
+    # print(g.drones.get_strategy_distribution())
 
 
 if __name__ == '__main__':
